@@ -13,7 +13,7 @@ pipeline {
     stages{
         stage('GETSCM'){
             steps{
-                git 'https://github.com/gkrishna9790/web_login_automation.git'
+                git 'https://github.com/gkrishna9790/jenkins-sagemaker-container-build.git'
             }
         }
         stage('Image Build'){

@@ -30,6 +30,13 @@ param_path = os.path.join(prefix, 'input/config/hyperparameters.json')
 channel_name='training'
 training_path = os.path.join(input_path, channel_name)
 
+def first_col(df,colname):
+    cols = list(df)
+    cols.insert(0, cols.pop(cols.index(colname)))
+    df = df.ix[:, cols]
+    return df
+    
+    
 # The function to execute the training.
 def train():
     print('Starting the training.')
@@ -37,6 +44,8 @@ def train():
         # Read in any hyperparameters that the user passed with the training job
         with open(param_path, 'r') as tc:
             trainingParams = json.load(tc)
+            print("trainingParams: ",trainingParams)
+            print("Training Path: ",training_path)
 
         # Take the set of files and read them all into a single pandas dataframe
         input_files = [ os.path.join(training_path, file) for file in os.listdir(training_path) ]
@@ -45,12 +54,46 @@ def train():
                               'This usually indicates that the channel ({}) was incorrectly specified,\n' +
                               'the data specification in S3 was incorrectly specified or the role specified\n' +
                               'does not have permission to access the data.').format(training_path, channel_name))
-        raw_data = [ pd.read_csv(file, header=None) for file in input_files ]
+        print("Reading Raw Data")
+        raw_data = [ pd.read_csv(file) for file in input_files ] 
+        print("Data Read In")        
         train_data = pd.concat(raw_data)
+        
+        print(train_data.head())
+        print("Col Names:", list(train_data))
+        
+        # Drop NA
+        train_data = train_data.dropna()
+        
+        # CATEGORICAL VARIABLES
+        categorical_variable_cols = ['job','marital','education','default','housing','loan','contact','month','day_of_week','poutcome']
+        
+        for var in categorical_variable_cols:
+            categ_list = 'var_' + var
+            categ_list = pd.get_dummies(train_data[var],prefix = var)
+            train_data1=train_data.join(categ_list)
+            train_data = train_data1
+            
+        # CATEGORICAL ENCODING
 
+        data_vars = train_data.columns.values.tolist()
+        to_keep=[i for i in data_vars if i not in categorical_variable_cols]
+        train_data_final = train_data[to_keep]
+        
+        # FINAL COLUMNS
+        columns_final = ["previous", "euribor3m", "job_blue-collar", "job_retired", "job_services", "job_student", "default_no",
+        "month_aug", "month_dec", "month_jul", "month_nov", "month_oct", "month_sep", "day_of_week_fri", "day_of_week_wed",
+        "poutcome_failure", "poutcome_nonexistent", "poutcome_success", "y"] 
+        
+        # KEEPING FINAL COLUMNS
+        train_data_final  = train_data_final[columns_final]
+        
+        # SWITCHING Y TO FIRST COLUMNS
+        train_data_final = first_col(train_data_final,'y')
+        
         # labels are in the first column
-        train_y = train_data.ix[:,0]
-        train_X = train_data.ix[:,1:]
+        train_y = train_data_final.ix[:,0]
+        train_X = train_data_final.ix[:,1:]
 
         # Here we only support a single hyperparameter. Note that hyperparameters are always passed in as
         # strings, so we need to do any necessary conversions.
@@ -66,6 +109,8 @@ def train():
         with open(os.path.join(model_path, 'decision-tree-model.pkl'), 'w') as out:
             pickle.dump(clf, out)
         print('Training complete.')
+        
+        
     except Exception as e:
         # Write out an error file. This will be returned as the failureReason in the
         # DescribeTrainingJob result.

@@ -11,7 +11,7 @@ pipeline {
         ECRCRED = 'ecr:us-east-1:demo-ecr-credentials'
     }
     stages{
-        stage('GETSCM'){
+        stage('Git Checkout'){
             steps{
                 git 'https://github.com/gkrishna9790/jenkins-sagemaker-container-build.git'
             }
